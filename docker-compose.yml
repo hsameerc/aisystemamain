@@ -1,0 +1,70 @@
+services:
+  support.prod:
+    container_name: "FINETUNE"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hsameer/support-openai:latest
+    command: gunicorn support.wsgi:application --bind 0.0.0.0:8080  --workers=4 --timeout 1000
+    volumes:
+      - .:/app
+    ports:
+      - "8090:8080"
+    environment:
+      SQL_ENGINE: "django.db.backends.postgresql"
+      SQL_DATABASE: "postgres"
+      SQL_USER: "postgres"
+      SQL_PASSWORD: "postgres"
+      SQL_HOST: "support.prod.db"
+      SQL_PORT: 5432
+      REDIS_HOST: support.redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ""
+    depends_on:
+      - support.prod.db
+    networks:
+      - support_system
+  support.prod.db:
+    container_name: "SUPPORT_DB"
+    image: postgres:latest
+    volumes:
+      - "support-production-net:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_NAME: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    ports:
+      - "5432:5432"
+    networks:
+      support_system:
+          ipv4_address: 192.168.10.100
+  support.redis:
+    container_name: SupportREDIS
+    image: redis:latest
+    restart: unless-stopped
+    ports:
+      - '6377:6379'
+    expose:
+      - "6377"
+    volumes:
+      - 'support-redis:/data'
+    networks:
+      support_system:
+        ipv4_address: 192.168.10.101
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      retries: 3
+      timeout: 5s
+networks:
+  support_system:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+volumes:
+  support-pgsql-net:
+    driver: local
+  support-redis:
+    driver: local
+  support-production-net:
+    driver: local
